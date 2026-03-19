@@ -1,0 +1,32 @@
+#!/bin/sh
+
+if [ -f /root/wg_common.sh ]; then
+  . /root/wg_common.sh
+fi
+
+key=$(wg show wg0 private-key 2> /dev/null | grep -v none)
+
+if [ -z ${key} ]; then
+  key=$(wg genkey)
+fi
+
+cat | grep -v PrivateKey | sed "/^\[Interface\]/a PrivateKey = ${key}" > /etc/wireguard/wg0.conf
+
+wg_reload wg0 > /dev/null 2>&1
+
+result=${?}
+
+echo "Content-Type: text/plain"
+if [ 0 -eq ${result} ]; then
+  echo "Content-Length: 2"
+else
+  echo "Content-Length: 4"
+fi
+echo "Date: $(date -u +"%a, %d %b %Y %H:%M:%S GMT")"
+echo ""
+
+if [ 0 -eq ${result} ]; then
+  echo -n "OK"
+else
+  echo -n "FAIL"
+fi

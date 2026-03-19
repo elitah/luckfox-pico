@@ -1,0 +1,248 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>测试</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1">
+<style>
+</style>
+</head>
+<body>
+<div id="app" style="display: none;">
+    <template v-if="is_ping_working">
+        <p>
+            <span>正在进行ping测试，请稍候...</span>
+        </p>
+    </template>
+    <template v-else>
+        <p>
+            <button @click="load">状态查询</button>
+            <button @click="getconf">修改配置</button>
+            <button @click="passwd">修改密码</button>
+            <button @click="reboot">重启</button>
+        </p>
+        <div style="background-color: #ccc; width: 100%; height: 3px; margin-bottom: 1em;"></div>
+        <div v-if="pagename == 'status'">
+            <p>
+                <button @click="load">刷新</button>
+                <button @click="is_ping = true;">ping测试</button>
+            </p>
+            <pre v-if="!is_ping" v-html="status"></pre>
+            <p v-else>
+                <input type="text" v-model="ping_ip" />
+                <button v-if="ping_ip" @click="ping">开始</button>
+                <button v-else disabled="disabled">开始</button>
+            </p>
+        </div>
+        <div v-if="pagename == 'config'">
+            <p>
+                <button @click="setconf">保存</button>
+                <button @click="genkey">更换私钥</button>
+            </p>
+            <p>
+                <span style="font-size: 12px;">为了保证安全，防止私钥泄漏，请勿在配置文件中填写私钥信息，如需更换私钥，请点击“更换私钥”按钮，替换为随机私钥</span>
+            </p>
+            <textarea v-model="config" style="width: 100%; height: 400px;"></textarea>
+        </div>
+        <div v-if="pagename == 'passwd'">
+            <p>
+                <span style="font-size: 12px;">此功能用于修改页面登录密码，请在下方输入新密码，然后点击“提交”按钮</span>
+            </p>
+            <p>
+                新密码：
+                <input type="password" v-model="password" @keyup="verify" />
+            </p>
+            <p>
+                验证密码：
+                <input type="password" v-model="password_r" @keyup="verify" />
+            </p>
+            <p>
+                <button v-if="password && password_r && password == password_r" @click="passwd">提交</button>
+                <button v-else disabled="disabled">提交</button>
+                <b style="margin-left: 1em; color: red;">${ passtips }</b>
+            </p>
+        </div>
+        <div v-if="pagename == 'reboot'">
+            <p>
+                <label>
+                    <input type="checkbox" v-model="reboot_chk" />
+                    确认重启
+                </label>
+                <button v-if="reboot_chk" @click="reboot">重启</button>
+            </p>
+        </div>
+    </template>
+</div>
+<script src="/js/vue.min.js"></script>
+<script src="/js/axios.min.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    delimiters : [ '${' , '}' ],
+    data () {
+        return {
+            pagename: '',
+
+            status: '',
+            config: '',
+
+            ping_ip: '',
+            is_ping: false,
+            is_ping_working: false,
+
+            password: '',
+            password_r: '',
+            passtips: '',
+
+            reboot_chk: false,
+        };
+    },
+	methods: {
+        load() {
+            this.pagename = 'status';
+            this.status = '';
+            this.is_ping = false;
+            axios.get('/cgi-bin/status').then(resp => {
+                this.status = resp.data;
+            }).catch(e => {
+                console.log(e);
+            });
+        },
+        ping() {
+            if (this.isIPOrDomain(this.ping_ip)) {
+                this.is_ping_working = true;
+                axios.post('/cgi-bin/ping', this.ping_ip, {
+                    headers: {
+                        'Content-Type': 'text/plain',
+                    }
+                }).then(resp => {
+                    this.is_ping = false;
+                    this.is_ping_working = false;
+                    this.status = resp.data;
+                }).catch(e => {
+                    this.is_ping_working = false;
+                    console.log(e);
+                });
+            } else {
+                alert('请输入有效的IP或域名');
+            }
+        },
+        getconf() {
+            this.pagename = 'config';
+            axios.get('/cgi-bin/wgconf').then(resp => {
+                this.config = resp.data;
+            }).catch(e => {
+                console.log(e);
+            });
+        },
+        setconf() {
+            axios.post('/cgi-bin/wgsave', this.config, {
+                headers: {
+                    'Content-Type': 'text/plain',
+                }
+            }).then(resp => {
+                if (resp.data == 'OK') {
+                    alert('保存成功');
+                    this.load();
+                } else {
+                    alert('错误');
+                }
+            }).catch(e => {
+                console.log(e);
+            });
+        },
+        genkey() {
+            axios.post('/cgi-bin/genkey').then(resp => {
+                if (resp.data == 'OK') {
+                    alert('保存成功');
+                    this.load();
+                } else {
+                    alert('错误');
+                }
+            }).catch(e => {
+                console.log(e);
+            });
+        },
+        verify() {
+            if (this.password) {
+                if (6 <= this.password.length) {
+                    if (this.password_r) {
+                        if (this.password == this.password_r) {
+                            this.passtips = '';
+                        } else {
+                            this.passtips = '验证密码必须与新密码相等，请重新输入！';
+                        }
+                    } else {
+                        this.passtips = '请输入验证密码';
+                    }
+                } else {
+                    this.passtips = '密码长度必须大于或等于6';
+                }
+            } else {
+                this.passtips = '请输入新密码';
+            }
+        },
+        passwd() {
+            if (this.pagename == 'passwd' && this.password && this.password_r && this.password == this.password_r) {
+                axios.post('/cgi-bin/passwd', this.password, {
+                    headers: {
+                        'Content-Type': 'text/plain',
+                    }
+                }).then(resp => {
+                    this.password = '';
+                    this.password_r = '';
+                    if (resp.data == 'OK') {
+                        this.load();
+                    } else {
+                        alert('错误');
+                    }
+                }).catch(e => {
+                    console.log(e);
+                });
+            } else {
+                this.pagename = 'passwd';
+            }
+        },
+        reboot() {
+            if (this.pagename == 'reboot' && this.reboot_chk) {
+                this.reboot_chk = false;
+                axios.post('/cgi-bin/reboot').then(resp => {
+                    alert('重启成功');
+                    window.location.reload();
+                }).catch(e => {
+                    console.log(e);
+                });
+            } else {
+                this.pagename = 'reboot';
+            }
+        },
+        isIPOrDomain(str) {
+            if (typeof str !== 'string' || str.trim() === '') {
+                return false;
+            }
+
+            const trimmed = str.trim();
+
+            const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$/;
+
+            if (ipv4Regex.test(trimmed)) {
+                return true;
+            }
+
+            const domainRegex = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63}(?<!-))*$/;
+
+            return domainRegex.test(trimmed);
+        },
+	},
+	mounted () {
+		document.getElementById('app').style.display = 'block';
+        this.load();
+	},
+	destroyed () {
+	}
+});
+</script>
+</body>
+</html>

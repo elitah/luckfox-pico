@@ -1,0 +1,57 @@
+#!/bin/sh
+
+# Make sure the start script file exists
+[ -f /root/autostart.sh ] || exit 0
+
+umask 077
+
+start() {
+  echo "Starting all screen: "
+  if [ -f /root/autostart.sh ]; then
+    if [ ! -x /root/autostart.sh ]; then
+      chmod 0755 /root/autostart.sh
+    fi
+    for file in $(find /root -mindepth 2 -maxdepth 2 -type f -name "run.sh" 2>/dev/null)
+    do
+      if [ -x ${file} ]; then
+        /root/autostart.sh "$(basename $(dirname ${file}))" ${file}
+      else
+        echo "unable execute script file: ${file}"
+      fi
+    done
+  fi
+  echo "OK"
+}
+
+stop() {
+  echo "Stopping all screen: "
+  for session in $(screen -ls | awk '/^\s*[0-9]+\./ {print $1}')
+  do
+    screen -d "${session}" > /dev/null 2>&1
+    screen -S "${session}" -X quit > /dev/null 2>&1
+  done
+  echo "OK"
+}
+
+restart() {
+  stop
+  start
+}
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart|reload)
+    restart
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}"
+    exit 1
+    ;;
+esac
+
+exit $?

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+ipaddr=$(cat)
+
+touch /tmp/ping.result
+
+if [ ! -z ${ipaddr} ]; then
+  ping -4 -w 2 -c 1 ${ipaddr} > /tmp/ping.result 2>&1
+fi
+
+echo "Content-Type: text/plain"
+echo "Content-Length: $(stat -c %s /tmp/ping.result)"
+echo "Date: $(date -u +"%a, %d %b %Y %H:%M:%S GMT")"
+echo ""
+
+cat /tmp/ping.result
+
+rm -rf /tmp/ping.result > /dev/null 2>&1

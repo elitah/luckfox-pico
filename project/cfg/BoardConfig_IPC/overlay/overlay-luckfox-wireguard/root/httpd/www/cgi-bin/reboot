@@ -1,0 +1,11 @@
+#!/bin/sh
+
+echo "Content-Type: text/plain"
+echo "Content-Length: 2"
+echo "Date: $(date -u +"%a, %d %b %Y %H:%M:%S GMT")"
+echo ""
+echo -n "OK"
+
+sync
+
+reboot
